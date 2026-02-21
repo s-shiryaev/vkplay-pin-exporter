@@ -93,4 +93,3 @@ A Tampermonkey userscript for quick export of non-activated PIN codes from [VKPl
 ## License
 
 [MIT](LICENSE)
-```
