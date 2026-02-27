@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         VKPlay PIN Code Exporter
 // @namespace    https://github.com/s-shiryaev/vkplay-pin-exporter
-// @version      1.0.0
+// @version      1.1.0
 // @description  Выгрузка неактивированных ПИН-кодов с VKPlay Market по названию предмета
 // @author       s-shiryaev
 // @match        https://market.vkplay.ru/inventory_code/*/
@@ -35,36 +35,67 @@
 
     const i18n = {
         ru: {
-            title:      '📦 PIN Exporter',
-            placeholder:'Название лота...',
-            btnFind:    'Найти',
-            btnCopy:    '📋 Копировать',
-            btnCopied:  '✅ Скопировано!',
-            notFound:   'Неактивированных кодов не найдено',
-            found:      (n) => `Найдено: ${n} шт.`,
-            loading:    (p) => `⏳ Загрузка страницы ${p}...`,
-            done:       '✅ Готово!',
-            emptyInput: '⚠️ Введите название лота',
-            error:      (e) => `❌ Ошибка: ${e}`,
-            outputHint: 'Коды появятся здесь...',
+            title:          '📦 PIN Exporter',
+            placeholder:    'Название лота...',
+            btnFind:        'Найти',
+            btnCopy:        '📋 Копировать',
+            btnCopied:      '✅ Скопировано!',
+            notFound:       'Неактивированных кодов не найдено',
+            found:          (n) => `Найдено: ${n} шт.`,
+            loading:        (p) => `⏳ Загрузка страницы ${p}...`,
+            done:           '✅ Готово!',
+            emptyInput:     '⚠️ Введите название лота',
+            error:          (e) => `❌ Ошибка: ${e}`,
+            outputHint:     'Коды появятся здесь...',
+            timeFilter:     'Время создания:',
+            timeAny:        'Любое время',
+            time10m:        'Последние 10 мин',
+            time1h:         'Последний час',
+            time1d:         'Последний день',
+            time1w:         'Последняя неделя',
+            time1mo:        'Последний месяц',
+            timeCustom:     'Свой период',
+            customMinutes:  'Минут:',
+            invalidCustom:  '⚠️ Введите кол-во минут',
         },
         en: {
-            title:      '📦 PIN Exporter',
-            placeholder:'Lot name...',
-            btnFind:    'Search',
-            btnCopy:    '📋 Copy',
-            btnCopied:  '✅ Copied!',
-            notFound:   'No inactive PIN codes found',
-            found:      (n) => `Found: ${n} pcs.`,
-            loading:    (p) => `⏳ Loading page ${p}...`,
-            done:       '✅ Done!',
-            emptyInput: '⚠️ Enter lot name',
-            error:      (e) => `❌ Error: ${e}`,
-            outputHint: 'Codes will appear here...',
+            title:          '📦 PIN Exporter',
+            placeholder:    'Lot name...',
+            btnFind:        'Search',
+            btnCopy:        '📋 Copy',
+            btnCopied:      '✅ Copied!',
+            notFound:       'No inactive PIN codes found',
+            found:          (n) => `Found: ${n} pcs.`,
+            loading:        (p) => `⏳ Loading page ${p}...`,
+            done:           '✅ Done!',
+            emptyInput:     '⚠️ Enter lot name',
+            error:          (e) => `❌ Error: ${e}`,
+            outputHint:     'Time of creation:',
+            timeAny:        'Any time',
+            time10m:        'Last 10 min',
+            time1h:         'Last hour',
+            time1d:         'Last day',
+            time1w:         'Last week',
+            time1mo:        'Last month',
+            timeCustom:     'Custom',
+            customMinutes:  'Minutes:',
+            invalidCustom:  '⚠️ Enter number of minutes',
         },
     };
 
     const t = i18n[LANG];
+
+    // ── Опции фильтра времени (в минутах, 0 = без фильтра) ──────────────────
+
+    const TIME_OPTIONS = [
+        { label: t.timeAny,  value: 0 },
+        { label: t.time10m,  value: 10 },
+        { label: t.time1h,   value: 60 },
+        { label: t.time1d,   value: 60 * 24 },
+        { label: t.time1w,   value: 60 * 24 * 7 },
+        { label: t.time1mo,  value: 60 * 24 * 30 },
+        { label: t.timeCustom, value: 'custom' },
+    ];
 
     // ── UI ──────────────────────────────────────────────────────────────────
 
@@ -76,6 +107,13 @@
             <div id="vpe-search-row">
                 <input id="vpe-input" type="text" placeholder="${t.placeholder}" />
                 <button id="vpe-btn">${t.btnFind}</button>
+            </div>
+            <div id="vpe-time-row">
+                <label for="vpe-time-select">${t.timeFilter}</label>
+                <select id="vpe-time-select">
+                    ${TIME_OPTIONS.map(o => `<option value="${o.value}">${o.label}</option>`).join('')}
+                </select>
+                <input id="vpe-custom-minutes" type="number" min="1" placeholder="${t.customMinutes}" style="display:none" />
             </div>
             <div id="vpe-status"></div>
             <textarea id="vpe-output" placeholder="${t.outputHint}" readonly></textarea>
@@ -138,6 +176,46 @@
         #vpe-input:focus {
             border-color: #89b4fa;
         }
+        #vpe-time-row {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+        #vpe-time-row label {
+            font-size: 12px;
+            color: #a6adc8;
+            white-space: nowrap;
+        }
+        #vpe-time-select {
+            flex: 1;
+            padding: 5px 6px;
+            border-radius: 6px;
+            border: 1px solid #585b70;
+            background: #313244;
+            color: #cdd6f4;
+            outline: none;
+            font-family: monospace;
+            font-size: 12px;
+            cursor: pointer;
+        }
+        #vpe-time-select:focus {
+            border-color: #89b4fa;
+        }
+        #vpe-custom-minutes {
+            width: 70px;
+            padding: 5px 6px;
+            border-radius: 6px;
+            border: 1px solid #585b70;
+            background: #313244;
+            color: #cdd6f4;
+            outline: none;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        #vpe-custom-minutes:focus {
+            border-color: #89b4fa;
+        }
         #vpe-btn {
             padding: 6px 12px;
             border-radius: 6px;
@@ -190,15 +268,23 @@
 
     // ── Элементы ─────────────────────────────────────────────────────────────
 
-    const input   = document.getElementById('vpe-input');
-    const btn     = document.getElementById('vpe-btn');
-    const status  = document.getElementById('vpe-status');
-    const output  = document.getElementById('vpe-output');
-    const copyBtn = document.getElementById('vpe-copy');
-    const countEl = document.getElementById('vpe-count');
-    const header  = document.getElementById('vpe-header');
-    const body    = document.getElementById('vpe-body');
-    const toggle  = document.getElementById('vpe-toggle');
+    const input         = document.getElementById('vpe-input');
+    const btn           = document.getElementById('vpe-btn');
+    const status        = document.getElementById('vpe-status');
+    const output        = document.getElementById('vpe-output');
+    const copyBtn       = document.getElementById('vpe-copy');
+    const countEl       = document.getElementById('vpe-count');
+    const header        = document.getElementById('vpe-header');
+    const body          = document.getElementById('vpe-body');
+    const toggle        = document.getElementById('vpe-toggle');
+    const timeSelect    = document.getElementById('vpe-time-select');
+    const customMinutes = document.getElementById('vpe-custom-minutes');
+
+    // ── Показ/скрытие поля кастомных минут ──────────────────────────────────
+
+    timeSelect.addEventListener('change', () => {
+        customMinutes.style.display = timeSelect.value === 'custom' ? 'block' : 'none';
+    });
 
     // ── Сворачивание панели ──────────────────────────────────────────────────
 
@@ -207,6 +293,28 @@
         body.style.display = collapsed ? 'flex' : 'none';
         toggle.textContent = collapsed ? '▲' : '▼';
     });
+
+    // ── Фильтр по времени ────────────────────────────────────────────────────
+
+    function getTimeFilter() {
+        const val = timeSelect.value;
+        if (val === '0') return null;
+        let minutes;
+        if (val === 'custom') {
+            minutes = parseInt(customMinutes.value, 10);
+            if (!minutes || minutes <= 0) return 'invalid';
+        } else {
+            minutes = parseInt(val, 10);
+        }
+        return new Date(Date.now() - minutes * 60 * 1000);
+    }
+
+    function isWithinPeriod(item, since) {
+        if (!since) return true;
+        const openedAt = item.code?.openedAt;
+        if (!openedAt) return false;
+        return new Date(openedAt) >= since;
+    }
 
     // ── Логика запросов ──────────────────────────────────────────────────────
 
@@ -237,22 +345,35 @@
         });
     }
 
-    async function fetchAllCodes(search) {
+    async function fetchAllCodes(search, since) {
         const codes = [];
         let url = `${API_BASE}?search=${encodeURIComponent(search)}`;
         let page = 1;
+        // API отдаёт коды от новых к старым — прекращаем пагинацию,
+        // когда все результаты страницы уже старше фильтра
+        let exhausted = false;
 
-        while (url) {
+        while (url && !exhausted) {
             setStatus(t.loading(page));
             const data = await fetchPage(url);
 
+            let pageHasMatch = false;
+
             for (const item of data.results) {
-                if (item.showRepackButton && item.code?.code) {
-                    codes.push(item.code.code);
+                if (!item.showRepackButton || !item.code?.code) continue;
+
+                if (since && !isWithinPeriod(item, since)) {
+                    // Коды отсортированы по убыванию openedAt:
+                    // как только встретили старый — дальше смотреть смысла нет
+                    exhausted = true;
+                    break;
                 }
+
+                codes.push(item.code.code);
+                pageHasMatch = true;
             }
 
-            url = data.next || null;
+            url = (!exhausted && data.next) ? data.next : null;
             page++;
         }
 
@@ -280,6 +401,12 @@
             return;
         }
 
+        const since = getTimeFilter();
+        if (since === 'invalid') {
+            setStatus(t.invalidCustom, true);
+            return;
+        }
+
         output.value = '';
         copyBtn.disabled = true;
         countEl.textContent = '';
@@ -287,7 +414,7 @@
         setStatus('');
 
         try {
-            const codes = await fetchAllCodes(search);
+            const codes = await fetchAllCodes(search, since);
 
             if (codes.length === 0) {
                 setStatus(t.notFound, true);
